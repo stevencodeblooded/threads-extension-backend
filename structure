@@ -1,0 +1,34 @@
+threads-pro-api/
+├── 📄 .env.example              ✓
+├── 📄 .gitignore               ✓
+├── 📄 package.json             ✓
+├── 📄 README.md                ✓
+├── 📄 server.js                ✓
+├── 📁 src/
+│   ├── 📄 app.js               ✓
+│   ├── 📁 config/
+│   │   ├── 📄 database.js      ✓
+│   │   ├── 📄 constants.js     ✓
+│   │   └── 📄 index.js         ✓
+│   ├── 📁 controllers/
+│   │   ├── 📄 licenseController.js    ✓
+│   │   ├── 📄 activityController.js   ✓
+│   │   └── 📄 adminController.js      ✓
+│   ├── 📁 models/
+│   │   ├── 📄 License.js       ✓
+│   │   ├── 📄 User.js          ✓
+│   │   └── 📄 Activity.js      ✓
+│   ├── 📁 routes/
+│   │   ├── 📄 licenseRoutes.js ✓
+│   │   ├── 📄 activityRoutes.js ✓
+│   │   └── 📄 adminRoutes.js   ✓
+│   ├── 📁 middleware/
+│   │   ├── 📄 auth.js          ✓
+│   │   ├── 📄 validation.js    ✓
+│   │   └── 📄 errorHandler.js  ✓
+│   └── 📁 utils/
+│       ├── 📄 licenseGenerator.js  ✓
+│       ├── 📄 emailService.js      ✓
+│       └── 📄 logger.js            ✓
+└── 📁 scripts/
+    └── 📄 generateLicense.js   ✓
