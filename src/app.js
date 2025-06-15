@@ -8,6 +8,7 @@ const rateLimit = require("express-rate-limit");
 const licenseRoutes = require("./routes/licenseRoutes");
 const activityRoutes = require("./routes/activityRoutes");
 const adminRoutes = require("./routes/adminRoutes");
+const publicRoutes = require("./routes/publicRoutes");
 
 // Import middleware
 const errorHandler = require("./middleware/errorHandler");
@@ -80,6 +81,7 @@ app.get("/health", (req, res) => {
 app.use("/api/license", licenseRoutes);
 app.use("/api/activity", activityRoutes);
 app.use("/api/admin", adminRoutes);
+app.use("/api/public", publicRoutes);
 
 // 404 handler
 app.use((req, res) => {
