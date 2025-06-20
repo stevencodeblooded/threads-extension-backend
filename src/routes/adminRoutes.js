@@ -42,6 +42,8 @@ router.post(
   adminController.revokeLicense
 );
 
+router.post("/licenses/:key/reactivate", adminController.reactivateLicense);
+
 router.post(
   "/licenses/:key/extend",
   validateRequest(extendLicenseSchema),
@@ -49,5 +51,7 @@ router.post(
 );
 
 router.get("/dashboard/stats", adminController.getDashboardStats);
+
+router.get("/licenses/active", adminController.getActiveLicenses);
 
 module.exports = router;

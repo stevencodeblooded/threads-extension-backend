@@ -8,7 +8,7 @@ const logger = require("../utils/logger");
 // Public endpoint to create licenses with type selection
 router.post("/create-license", async (req, res) => {
   try {
-    const { email, licenseType } = req.body;
+    const { email, licenseType, days, maxThreads } = req.body;
 
     if (!email || !email.includes("@")) {
       return res.status(400).json({
@@ -17,13 +17,36 @@ router.post("/create-license", async (req, res) => {
       });
     }
 
-    // Validate license type
-    const validTypes = ["trial", "basic", "pro", "enterprise"];
-    if (!licenseType || !validTypes.includes(licenseType)) {
-      return res.status(400).json({
-        success: false,
-        message: "Valid license type required",
-      });
+    // If custom days is provided, set type to "custom"
+    let finalType = days ? "custom" : licenseType || "basic";
+    let finalDays = days;
+    let finalMaxThreads = maxThreads;
+
+    // Only validate license type if not using custom values
+    if (!days) {
+      const validTypes = ["trial", "basic", "pro", "enterprise"];
+      if (!licenseType || !validTypes.includes(licenseType)) {
+        return res.status(400).json({
+          success: false,
+          message: "Valid license type required",
+        });
+      }
+
+      // Set defaults based on license type
+      switch (licenseType) {
+        case "trial":
+          finalDays = 7;
+          break;
+        case "basic":
+          finalDays = 30;
+          break;
+        case "pro":
+          finalDays = 365;
+          break;
+        case "enterprise":
+          finalDays = 365;
+          break;
+      }
     }
 
     // Check if email already has an active license
@@ -40,40 +63,37 @@ router.post("/create-license", async (req, res) => {
       });
     }
 
-    // Set days based on license type
-    let days;
-    switch (licenseType) {
-      case "trial":
-        days = 7;
-        break;
-      case "basic":
-        days = 30;
-        break;
-      case "pro":
-        days = 365;
-        break;
-      case "enterprise":
-        days = 365;
-        break;
-      default:
-        days = 30;
+    // Create metadata
+    const metadata = {};
+    if (maxThreads) {
+      metadata.customMaxThreads = maxThreads;
     }
 
     // Create license
-    const license = await License.createLicense(email, licenseType, days);
+    const license = await License.createLicense(
+      email,
+      finalType,
+      finalDays,
+      metadata
+    );
 
-    logger.info(`${licenseType} license created for ${email}`);
+    // Update features if custom values provided
+    if (maxThreads) {
+      license.features.maxThreads = maxThreads;
+      await license.save();
+    }
 
-    // Send email if configured (optional)
-    // await emailService.sendLicenseActivation(email, license);
+    logger.info(
+      `${finalType} license created for ${email} with ${finalDays} days`
+    );
 
     res.json({
       success: true,
       license: {
         key: license.key,
         email: license.email,
-        type: licenseType,
-        validDays: days,
+        type: finalType,
+        validDays: finalDays,
         expiresAt: license.expiresAt,
         features: license.features,
       },

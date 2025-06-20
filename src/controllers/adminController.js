@@ -6,7 +6,7 @@ const logger = require("../utils/logger");
 // Create a new license
 exports.createLicense = async (req, res) => {
   try {
-    const { email, type = "basic", days, notes } = req.body;
+    const { email, type = "basic", days, notes, maxThreads } = req.body;
 
     // Check if license already exists for this email
     const existingLicense = await License.findOne({
@@ -42,13 +42,25 @@ exports.createLicense = async (req, res) => {
       }
     }
 
+    // Create metadata object
+    const metadata = { notes };
+    
+    // If custom maxThreads is provided, use it
+    if (maxThreads) {
+      metadata.customMaxThreads = maxThreads;
+    }
+
     // Create the license
-    const license = await License.createLicense(email, type, daysValid, {
-      notes,
-    });
+    const license = await License.createLicense(email, type, daysValid, metadata);
+    
+    // If custom maxThreads was provided, update the features
+    if (maxThreads) {
+      license.features.maxThreads = maxThreads;
+      await license.save();
+    }
 
     logger.info(
-      `License created for ${email} - Type: ${type}, Days: ${daysValid}`
+      `License created for ${email} - Type: ${type}, Days: ${daysValid}, MaxThreads: ${license.features.maxThreads}`
     );
 
     res.status(201).json({
@@ -66,6 +78,53 @@ exports.createLicense = async (req, res) => {
     res.status(500).json({
       success: false,
       message: "Failed to create license",
+    });
+  }
+};
+
+// Reactivate a revoked license
+exports.reactivateLicense = async (req, res) => {
+  try {
+    const { key } = req.params;
+
+    const license = await License.findOne({ key });
+
+    if (!license) {
+      return res.status(404).json({
+        success: false,
+        message: "License not found",
+      });
+    }
+
+    // Only reactivate if it was revoked
+    if (license.status !== "revoked") {
+      return res.status(400).json({
+        success: false,
+        message: "License is not revoked",
+      });
+    }
+
+    // Reset revoked status
+    license.status = "active";
+    license.revoked = {
+      status: false,
+      reason: null,
+      date: null,
+    };
+
+    await license.save();
+
+    logger.info(`License reactivated: ${key}`);
+
+    res.json({
+      success: true,
+      message: "License reactivated successfully",
+    });
+  } catch (error) {
+    logger.error("Reactivate license error:", error);
+    res.status(500).json({
+      success: false,
+      message: "Failed to reactivate license",
     });
   }
 };
@@ -105,6 +164,67 @@ exports.listLicenses = async (req, res) => {
     res.status(500).json({
       success: false,
       message: "Failed to retrieve licenses",
+    });
+  }
+};
+
+// Get active licenses with detailed stats
+exports.getActiveLicenses = async (req, res) => {
+  try {
+    const { search, sortBy = 'createdAt', order = 'desc' } = req.query;
+
+    // Build query for active licenses only
+    const query = {
+      status: { $in: ["active", "trial", "revoked"] },
+    };
+
+    // Add search functionality
+    if (search) {
+      query.$or = [
+        { email: new RegExp(search, 'i') },
+        { key: new RegExp(search, 'i') }
+      ];
+    }
+
+    // Get licenses with activity count
+    const licenses = await License.aggregate([
+      { $match: query },
+      {
+        $lookup: {
+          from: 'activities',
+          localField: 'key',
+          foreignField: 'licenseKey',
+          as: 'activities'
+        }
+      },
+      {
+        $addFields: {
+          totalActivities: { $size: '$activities' },
+          lastActivity: { $max: '$activities.createdAt' },
+          daysLeft: {
+            $ceil: {
+              $divide: [
+                { $subtract: ['$expiresAt', new Date()] },
+                1000 * 60 * 60 * 24
+              ]
+            }
+          }
+        }
+      },
+      { $project: { activities: 0 } }, // Remove activities array to reduce payload
+      { $sort: { [sortBy]: order === 'asc' ? 1 : -1 } }
+    ]);
+
+    res.json({
+      success: true,
+      licenses,
+      total: licenses.length
+    });
+  } catch (error) {
+    logger.error("Get active licenses error:", error);
+    res.status(500).json({
+      success: false,
+      message: "Failed to retrieve active licenses",
     });
   }
 };
@@ -161,6 +281,17 @@ exports.extendLicense = async (req, res) => {
       return res.status(404).json({
         success: false,
         message: "License not found",
+      });
+    }
+
+    // Check if license has more than 7 days left
+    const daysLeft = Math.ceil(
+      (license.expiresAt - new Date()) / (1000 * 60 * 60 * 24)
+    );
+    if (daysLeft > 7 && license.status === "active") {
+      return res.status(400).json({
+        success: false,
+        message: "Cannot extend license that has more than 7 days remaining",
       });
     }
 

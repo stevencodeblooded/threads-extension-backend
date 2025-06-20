@@ -31,7 +31,7 @@ const licenseSchema = new mongoose.Schema(
     },
     type: {
       type: String,
-      enum: ["trial", "basic", "pro", "enterprise"],
+      enum: ["trial", "basic", "pro", "enterprise", "custom"], 
       default: "basic",
     },
     features: {
