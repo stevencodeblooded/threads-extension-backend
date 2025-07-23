@@ -6,23 +6,40 @@ const logger = require("./src/utils/logger");
 
 const PORT = process.env.PORT || 3000;
 
-// Connect to MongoDB with updated options
-mongoose
-  .connect(process.env.MONGODB_URI, {
-    maxPoolSize: 10,
-    serverSelectionTimeoutMS: 5000,
-  })
-  .then(() => {
-    logger.info("Connected to MongoDB");
+// MongoDB connection for Vercel (serverless)
+let isConnected = false;
 
-    // Start server
-    app.listen(PORT, () => {
-      logger.info(`Server running on port ${PORT}`);
-      logger.info(`Environment: ${process.env.NODE_ENV}`);
-      logger.info(`Health check: http://localhost:${PORT}/health`);
+const connectToDatabase = async () => {
+  if (isConnected) {
+    return;
+  }
+
+  try {
+    await mongoose.connect(process.env.MONGODB_URI, {
+      maxPoolSize: 10,
+      serverSelectionTimeoutMS: 5000,
+      bufferCommands: false, // Disable mongoose buffering for serverless
     });
-  })
-  .catch((error) => {
+
+    isConnected = true;
+    logger.info("Connected to MongoDB");
+  } catch (error) {
     logger.error("MongoDB connection error:", error);
-    process.exit(1);
+    throw error;
+  }
+};
+
+// Connect to database on startup
+connectToDatabase().catch(console.error);
+
+// For local development
+if (process.env.NODE_ENV !== "production" || process.env.VERCEL !== "1") {
+  app.listen(PORT, () => {
+    logger.info(`Server running on port ${PORT}`);
+    logger.info(`Environment: ${process.env.NODE_ENV}`);
+    logger.info(`Health check: http://localhost:${PORT}/health`);
   });
+}
+
+// Export for Vercel
+module.exports = app;
