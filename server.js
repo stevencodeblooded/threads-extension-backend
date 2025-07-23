@@ -33,29 +33,27 @@ const connectToDatabase = async () => {
   }
 };
 
-// Import app after setting up logger
+// Import and initialize app
 const app = require("./src/app");
 
-// Connect to database and handle requests
-const handler = async (req, res) => {
+// Database connection middleware
+app.use(async (req, res, next) => {
   try {
     await connectToDatabase();
-    return app(req, res);
+    next();
   } catch (error) {
-    logger.error("Request handler error:", error);
-    return res.status(500).json({ error: "Database connection failed" });
+    logger.error("Database connection failed:", error);
+    res.status(500).json({ error: "Database connection failed" });
   }
-};
+});
 
 // For local development
 const PORT = process.env.PORT || 3000;
 if (process.env.NODE_ENV !== "production") {
-  connectToDatabase().then(() => {
-    app.listen(PORT, () => {
-      logger.info(`Server running on port ${PORT}`);
-    });
+  app.listen(PORT, () => {
+    logger.info(`Server running on port ${PORT}`);
   });
 }
 
 // Export for Vercel
-module.exports = handler;
+module.exports = app;
