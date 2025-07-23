@@ -12,7 +12,11 @@ const publicRoutes = require("./routes/publicRoutes");
 
 // Import middleware
 const errorHandler = require("./middleware/errorHandler");
-const logger = require("./utils/logger");
+const logger = {
+  info: (msg, ...args) => console.log(`[INFO] ${msg}`, ...args),
+  error: (msg, ...args) => console.error(`[ERROR] ${msg}`, ...args),
+  warn: (msg, ...args) => console.warn(`[WARN] ${msg}`, ...args),
+};
 
 const app = express();
 
@@ -22,27 +26,44 @@ app.use(helmet());
 // CORS configuration
 const corsOptions = {
   origin: function (origin, callback) {
-    // In development, allow all chrome-extension origins and localhost
-    if (!origin || 
-        origin.startsWith("chrome-extension://") || 
+    // Allow requests with no origin (like Postman, mobile apps)
+    if (!origin) return callback(null, true);
+    
+    // Always allow chrome extensions and localhost
+    if (origin.startsWith("chrome-extension://") || 
         origin.startsWith("moz-extension://") ||
         origin.includes("localhost") ||
         origin.includes("127.0.0.1")) {
-      callback(null, true);
-    } else {
-      const allowedOrigins = process.env.ALLOWED_ORIGINS?.split(",") || [];
-      if (allowedOrigins.includes(origin)) {
-        callback(null, true);
-      } else {
-        callback(new Error("Not allowed by CORS"));
-      }
+      return callback(null, true);
     }
+    
+    // Check allowed origins from environment
+    const allowedOrigins = process.env.ALLOWED_ORIGINS?.split(",") || [];
+    if (allowedOrigins.includes(origin)) {
+      return callback(null, true);
+    }
+    
+    // Log blocked origins for debugging
+    console.log('CORS blocked origin:', origin);
+    callback(new Error("Not allowed by CORS"));
   },
   credentials: true,
   methods: ['GET', 'POST', 'PUT', 'DELETE', 'OPTIONS'],
-  allowedHeaders: ['Content-Type', 'Authorization', 'X-Extension-Version', 'X-API-Key'],
+  allowedHeaders: [
+    'Content-Type', 
+    'Authorization', 
+    'X-Extension-Version', 
+    'X-API-Key',
+    'Origin',
+    'X-Requested-With',
+    'Accept',
+    'Cache-Control'
+  ],
   optionsSuccessStatus: 200,
 };
+
+// Handle preflight requests explicitly
+app.options('*', cors(corsOptions));
 
 app.use(cors(corsOptions));
 

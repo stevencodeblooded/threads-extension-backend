@@ -1,24 +1,28 @@
 // server.js - Main entry point for Threads Pro API
-require("dotenv").config();
 const mongoose = require("mongoose");
-const app = require("./src/app");
-const logger = require("./src/utils/logger");
 
-const PORT = process.env.PORT || 3000;
+// Simple logger for serverless
+const logger = {
+  info: (msg, ...args) => console.log(`[INFO] ${msg}`, ...args),
+  error: (msg, ...args) => console.error(`[ERROR] ${msg}`, ...args),
+  warn: (msg, ...args) => console.warn(`[WARN] ${msg}`, ...args),
+};
 
-// MongoDB connection for Vercel (serverless)
+// MongoDB connection for serverless
 let isConnected = false;
 
 const connectToDatabase = async () => {
-  if (isConnected) {
+  if (isConnected && mongoose.connection.readyState === 1) {
     return;
   }
 
   try {
     await mongoose.connect(process.env.MONGODB_URI, {
-      maxPoolSize: 10,
+      maxPoolSize: 5,
       serverSelectionTimeoutMS: 5000,
-      bufferCommands: false, // Disable mongoose buffering for serverless
+      socketTimeoutMS: 45000,
+      bufferCommands: false,
+      bufferMaxEntries: 0,
     });
 
     isConnected = true;
@@ -29,17 +33,29 @@ const connectToDatabase = async () => {
   }
 };
 
-// Connect to database on startup
-connectToDatabase().catch(console.error);
+// Import app after setting up logger
+const app = require("./src/app");
+
+// Connect to database and handle requests
+const handler = async (req, res) => {
+  try {
+    await connectToDatabase();
+    return app(req, res);
+  } catch (error) {
+    logger.error("Request handler error:", error);
+    return res.status(500).json({ error: "Database connection failed" });
+  }
+};
 
 // For local development
-if (process.env.NODE_ENV !== "production" || process.env.VERCEL !== "1") {
-  app.listen(PORT, () => {
-    logger.info(`Server running on port ${PORT}`);
-    logger.info(`Environment: ${process.env.NODE_ENV}`);
-    logger.info(`Health check: http://localhost:${PORT}/health`);
+const PORT = process.env.PORT || 3000;
+if (process.env.NODE_ENV !== "production") {
+  connectToDatabase().then(() => {
+    app.listen(PORT, () => {
+      logger.info(`Server running on port ${PORT}`);
+    });
   });
 }
 
 // Export for Vercel
-module.exports = app;
+module.exports = handler;
