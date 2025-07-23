@@ -62,10 +62,10 @@ const corsOptions = {
   optionsSuccessStatus: 200,
 };
 
-// Handle preflight requests explicitly
-app.options('*', cors(corsOptions));
-
 app.use(cors(corsOptions));
+
+// Handle preflight requests explicitly
+app.options("*", cors(corsOptions));
 
 // Body parsing middleware
 app.use(express.json());
