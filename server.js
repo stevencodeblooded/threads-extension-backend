@@ -1,6 +1,7 @@
 // server.js - Updated for Vercel serverless deployment
 require("dotenv").config();
 const mongoose = require("mongoose");
+const app = require("./src/app");
 
 // Simple logger for serverless
 const logger = {
@@ -14,16 +15,19 @@ let cachedConnection = null;
 
 const connectToDatabase = async () => {
   if (cachedConnection && mongoose.connection.readyState === 1) {
+    logger.info("Using cached database connection");
     return cachedConnection;
   }
 
   try {
+    if (!process.env.MONGODB_URI) {
+      throw new Error("MONGODB_URI is not defined in environment variables");
+    }
+
     const opts = {
-      maxPoolSize: 5,
-      serverSelectionTimeoutMS: 5000,
-      socketTimeoutMS: 45000,
       bufferCommands: false,
-      bufferMaxEntries: 0,
+      serverSelectionTimeoutMS: 10000,
+      socketTimeoutMS: 45000,
     };
 
     cachedConnection = await mongoose.connect(process.env.MONGODB_URI, opts);
@@ -35,34 +39,10 @@ const connectToDatabase = async () => {
   }
 };
 
-// Import app after dotenv config
-const app = require("./src/app");
-
-// Main handler function for Vercel
-const handler = async (req, res) => {
-  try {
-    // Connect to database before handling request
-    await connectToDatabase();
-
-    // Handle the request with Express app
-    return app(req, res);
-  } catch (error) {
-    logger.error("Handler error:", error);
-    return res.status(500).json({
-      error: "Internal server error",
-      message:
-        process.env.NODE_ENV === "development"
-          ? error.message
-          : "Something went wrong",
-    });
-  }
-};
-
 // For local development
-if (process.env.NODE_ENV !== "production") {
+if (process.env.NODE_ENV !== "production" && require.main === module) {
   const PORT = process.env.PORT || 3000;
 
-  // Connect to database for local development
   connectToDatabase()
     .then(() => {
       app.listen(PORT, () => {
@@ -75,5 +55,23 @@ if (process.env.NODE_ENV !== "production") {
     });
 }
 
-// Export handler for Vercel
-module.exports = handler;
+// Export the Express app for Vercel
+module.exports = async (req, res) => {
+  try {
+    await connectToDatabase();
+    return app(req, res);
+  } catch (error) {
+    logger.error("Request handler error:", error);
+
+    // Send a proper error response
+    if (!res.headersSent) {
+      res.status(500).json({
+        error: "Internal server error",
+        message:
+          process.env.NODE_ENV === "development"
+            ? error.message
+            : "Something went wrong",
+      });
+    }
+  }
+};

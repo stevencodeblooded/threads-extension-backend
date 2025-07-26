@@ -3,21 +3,10 @@
   "builds": [
     {
       "src": "server.js",
-      "use": "@vercel/node",
-      "config": {
-        "maxLambdaSize": "50mb"
-      }
+      "use": "@vercel/node"
     }
   ],
   "routes": [
-    {
-      "src": "/health",
-      "dest": "/server.js"
-    },
-    {
-      "src": "/api/(.*)",
-      "dest": "/server.js"
-    },
     {
       "src": "/(.*)",
       "dest": "/server.js"
@@ -25,10 +14,7 @@
   ],
   "functions": {
     "server.js": {
-      "maxDuration": 30
+      "maxDuration": 10
     }
-  },
-  "env": {
-    "NODE_ENV": "production"
   }
 }
