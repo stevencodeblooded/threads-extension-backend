@@ -12,9 +12,7 @@
       "dest": "/server.js"
     }
   ],
-  "functions": {
-    "server.js": {
-      "maxDuration": 10
-    }
+  "env": {
+    "NODE_ENV": "production"
   }
 }
